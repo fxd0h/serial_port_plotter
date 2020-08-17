@@ -27,74 +27,83 @@
 #include "mainwindow.hpp"
 #include "ui_mainwindow.h"
 #include <x86intrin.h>
+#include <stdexcept>
+#include <QCoreApplication>
+#include <QDebug>
+#include <QStringList>
+#include <QTextStream>
+#include <QTimer>
 
+#include "feeds/subscribe.h"
+
+//using namespace nzmqt;
 /**
  * @brief Constructor
  * @param parent
  */
 MainWindow::MainWindow (QWidget *parent) :
-  QMainWindow (parent),
-  ui (new Ui::MainWindow),
+    QMainWindow (parent),
+    ui (new Ui::MainWindow),
 
-  /* Populate colors */
-  line_colors{
-      /* For channel data (gruvbox palette) */
-      /* Light */
-      QColor ("#fb4934"),
-      QColor ("#b8bb26"),
-      QColor ("#fabd2f"),
-      QColor ("#83a598"),
-      QColor ("#d3869b"),
-      QColor ("#8ec07c"),
-      QColor ("#fe8019"),
-      /* Light */
-      QColor ("#cc241d"),
-      QColor ("#98971a"),
-      QColor ("#d79921"),
-      QColor ("#458588"),
-      QColor ("#b16286"),
-      QColor ("#689d6a"),
-      QColor ("#d65d0e"),
-   },
-  gui_colors {
-      /* Monochromatic for axes and ui */
-      QColor (48,  47,  47,  255), /**<  0: qdark ui dark/background color */
-      QColor (80,  80,  80,  255), /**<  1: qdark ui medium/grid color */
-      QColor (170, 170, 170, 255), /**<  2: qdark ui light/text color */
-      QColor (48,  47,  47,  200)  /**<  3: qdark ui dark/background color w/transparency */
-    },
+    /* Populate colors */
+    line_colors{
+        /* For channel data (gruvbox palette) */
+        /* Light */
+        QColor ("#fb4934"),
+        QColor ("#b8bb26"),
+        QColor ("#fabd2f"),
+        QColor ("#83a598"),
+        QColor ("#d3869b"),
+        QColor ("#8ec07c"),
+        QColor ("#fe8019"),
+        /* Light */
+        QColor ("#cc241d"),
+        QColor ("#98971a"),
+        QColor ("#d79921"),
+        QColor ("#458588"),
+        QColor ("#b16286"),
+        QColor ("#689d6a"),
+        QColor ("#d65d0e"),
+        },
+    gui_colors {
+        /* Monochromatic for axes and ui */
+        QColor (48,  47,  47,  255), /**<  0: qdark ui dark/background color */
+        QColor (80,  80,  80,  255), /**<  1: qdark ui medium/grid color */
+        QColor (170, 170, 170, 255), /**<  2: qdark ui light/text color */
+        QColor (48,  47,  47,  200)  /**<  3: qdark ui dark/background color w/transparency */
+        },
 
-  /* Main vars */
-  connected (false),
-  plotting (false),
-  dataPointNumber (0),
-  channels(0),
-  serialPort (nullptr),
-  STATE (WAIT_START),
-  NUMBER_OF_POINTS (500)
+    /* Main vars */
+    connected (false),
+    plotting (false),
+    dataPointNumber (0),
+    channels(0),
+    serialPort (nullptr),
+    STATE (WAIT_START),
+    NUMBER_OF_POINTS (500)
 {
-  ui->setupUi (this);
+    ui->setupUi (this);
 
-  /* Init UI and populate UI controls */
-  createUI();
+    /* Init UI and populate UI controls */
+    createUI();
 
-  /* Setup plot area and connect controls slots */
-  setupPlot();
+    /* Setup plot area and connect controls slots */
+    setupPlot();
 
-  /* Wheel over plot when plotting */
-  connect (ui->plot, SIGNAL (mouseWheel (QWheelEvent*)), this, SLOT (on_mouse_wheel_in_plot (QWheelEvent*)));
+    /* Wheel over plot when plotting */
+    connect (ui->plot, SIGNAL (mouseWheel (QWheelEvent*)), this, SLOT (on_mouse_wheel_in_plot (QWheelEvent*)));
 
-  /* Slot for printing coordinates */
-  connect (ui->plot, SIGNAL (mouseMove (QMouseEvent*)), this, SLOT (onMouseMoveInPlot (QMouseEvent*)));
+    /* Slot for printing coordinates */
+    connect (ui->plot, SIGNAL (mouseMove (QMouseEvent*)), this, SLOT (onMouseMoveInPlot (QMouseEvent*)));
 
-  /* Channel selection */
-  connect (ui->plot, SIGNAL(selectionChangedByUser()), this, SLOT(channel_selection()));
-  connect (ui->plot, SIGNAL(legendDoubleClick (QCPLegend*, QCPAbstractLegendItem*, QMouseEvent*)), this, SLOT(legend_double_click (QCPLegend*, QCPAbstractLegendItem*, QMouseEvent*)));
+    /* Channel selection */
+    connect (ui->plot, SIGNAL(selectionChangedByUser()), this, SLOT(channel_selection()));
+    connect (ui->plot, SIGNAL(legendDoubleClick (QCPLegend*, QCPAbstractLegendItem*, QMouseEvent*)), this, SLOT(legend_double_click (QCPLegend*, QCPAbstractLegendItem*, QMouseEvent*)));
 
-  /* Connect update timer to replot slot */
-  connect (&updateTimer, SIGNAL (timeout()), this, SLOT (replot()));
+    /* Connect update timer to replot slot */
+    connect (&updateTimer, SIGNAL (timeout()), this, SLOT (replot()));
 
-  m_csvFile = nullptr;
+    m_csvFile = nullptr;
 }
 
 /** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
@@ -105,11 +114,11 @@ MainWindow::MainWindow (QWidget *parent) :
 MainWindow::~MainWindow()
 {
     closeCsvFile();
-      
+
     if (serialPort != nullptr)
-      {
+    {
         delete serialPort;
-      }
+    }
     delete ui;
 }
 /** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
@@ -121,17 +130,17 @@ void MainWindow::createUI()
 {
     /* Check if there are any ports at all; if not, disable controls and return */
     if (QSerialPortInfo::availablePorts().size() == 0)
-      {
+    {
         enable_com_controls (false);
         ui->statusBar->showMessage ("No ports detected.");
         return;
-      }
+    }
 
     /* List all available serial ports and populate ports combo box */
     for (QSerialPortInfo port : QSerialPortInfo::availablePorts())
-      {
+    {
         ui->comboPort->addItem (port.portName());
-      }
+    }
 
     /* Populate baud rate combo box with standard rates */
     ui->comboBaud->addItem ("1200");
@@ -183,7 +192,28 @@ void MainWindow::createUI()
 
     // disable PNG export before starting record
     ui->actionRecord_PNG->setEnabled(false);
+    switch (m_prefs.dataFeedMode){
+    case ZMQ_DATA :
+        ui->PortControlsBox->setVisible(false);
+        ui->zmqGroupBox->setVisible(true);
+        ui->zmqRadioButton->setChecked(true);
+        ui->serialRadioButton->setChecked(false);
+        break;
+    case SERIAL_DATA:
+        ui->PortControlsBox->setVisible(true);
+        ui->zmqGroupBox->setVisible(false);
+        ui->zmqRadioButton->setChecked(false);
+        ui->serialRadioButton->setChecked(true);
+    default:
+        break;
     }
+
+    ui->zmqQLineEdit->setText(m_prefs.zmqQueue);
+    ui->zmqUrlLineEdit->setText(m_prefs.zmqURL);
+
+    initZmq();
+
+}
 /** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
 /**
@@ -259,17 +289,20 @@ void MainWindow::setupPlot()
  */
 void MainWindow::enable_com_controls (bool enable)
 {
-  /* Com port properties */
-  ui->comboBaud->setEnabled (enable);
-  ui->comboData->setEnabled (enable);
-  ui->comboParity->setEnabled (enable);
-  ui->comboPort->setEnabled (enable);
-  ui->comboStop->setEnabled (enable);
+    /* ZMQ properties */
+    ui->zmqGroupBox->setEnabled(enable);
 
-  /* Toolbar elements */
-  ui->actionConnect->setEnabled (enable);
-  ui->actionPause_Plot->setEnabled (!enable);
-  ui->actionDisconnect->setEnabled (!enable);
+    /* Com port properties */
+    ui->comboBaud->setEnabled (enable);
+    ui->comboData->setEnabled (enable);
+    ui->comboParity->setEnabled (enable);
+    ui->comboPort->setEnabled (enable);
+    ui->comboStop->setEnabled (enable);
+
+    /* Toolbar elements */
+    ui->actionConnect->setEnabled (enable);
+    ui->actionPause_Plot->setEnabled (!enable);
+    ui->actionDisconnect->setEnabled (!enable);
 }
 /** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
@@ -288,24 +321,21 @@ void MainWindow::openPort (QSerialPortInfo portInfo, int baudRate, QSerialPort::
     connect (this, SIGNAL(portOpenOK()), this, SLOT(portOpenedSuccess()));                 // Connect port signals to GUI slots
     connect (this, SIGNAL(portOpenFail()), this, SLOT(portOpenedFail()));
     connect (this, SIGNAL(portClosed()), this, SLOT(onPortClosed()));
-    connect (this, SIGNAL(newData(QStringList)), this, SLOT(onNewDataArrived(QStringList)));
     connect (serialPort, SIGNAL(readyRead()), this, SLOT(readData()));
-    
-    connect (this, SIGNAL(newData(QStringList)), this, SLOT(saveStream(QStringList)));
 
     if (serialPort->open (QIODevice::ReadWrite))
-      {
+    {
         serialPort->setBaudRate (baudRate);
         serialPort->setParity (parity);
         serialPort->setDataBits (dataBits);
         serialPort->setStopBits (stopBits);
         emit portOpenOK();
-      }
+    }
     else
-      {
+    {
         emit portOpenedFail();
         qDebug() << serialPort->errorString();
-      }
+    }
 }
 /** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
@@ -327,7 +357,7 @@ void MainWindow::onPortClosed()
     disconnect (this, SIGNAL(portOpenFail()), this, SLOT(portOpenedFail()));
     disconnect (this, SIGNAL(portClosed()), this, SLOT(onPortClosed()));
     disconnect (this, SIGNAL(newData(QStringList)), this, SLOT(onNewDataArrived(QStringList)));
-  
+
     disconnect (this, SIGNAL(newData(QStringList)), this, SLOT(saveStream(QStringList)));
 }
 /** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
@@ -382,8 +412,8 @@ void MainWindow::portOpenedFail()
  */
 void MainWindow::replot()
 {
-  ui->plot->xAxis->setRange (dataPointNumber - ui->spinPoints->value(), dataPointNumber);
-  ui->plot->replot();
+    ui->plot->xAxis->setRange (dataPointNumber - ui->spinPoints->value(), dataPointNumber);
+    ui->plot->replot();
 }
 /** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
@@ -406,16 +436,16 @@ void MainWindow::onNewDataArrived(QStringList newData)
     you_shall_NOT_PASS = true;
 
     if (plotting)
-      {
+    {
         /* Get size of received list */
         data_members = newData.size();
 
         /* Parse data */
         for (i = 0; i < data_members; i++)
-          {
+        {
             /* Update number of axes if needed */
             while (ui->plot->plottableCount() <= channel)
-              {
+            {
                 /* Add new channel data */
                 ui->plot->addGraph();
                 ui->plot->graph()->setPen (line_colors[channels % CUSTOM_LINE_COLORS]);
@@ -427,37 +457,37 @@ void MainWindow::onNewDataArrived(QStringList newData)
                 ui->listWidget_Channels->addItem(ui->plot->graph()->name());
                 ui->listWidget_Channels->item(channel)->setForeground(QBrush(line_colors[channels % CUSTOM_LINE_COLORS]));
                 channels++;
-              }
+            }
 
             /* [TODO] Method selection and plotting */
             /* X-Y */
             if (0)
-              {
+            {
 
-              }
+            }
             /* Rolling (v1.0.0 compatible) */
             else
-              {
+            {
                 /* Add data to Graph 0 */
                 ui->plot->graph(channel)->addData (dataPointNumber, newData[channel].toDouble());
                 /* Increment data number and channel */
                 channel++;
-              }
-          }
+            }
+        }
 
         /* Post-parsing */
         /* X-Y */
         if (0)
-          {
+        {
 
-          }
+        }
         /* Rolling (v1.0.0 compatible) */
         else
-          {
+        {
             dataPointNumber++;
             channel = 0;
-          }
-      }
+        }
+    }
     you_shall_NOT_PASS = false;
 }
 /** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
@@ -466,7 +496,7 @@ void MainWindow::onNewDataArrived(QStringList newData)
  * @brief Slot for spin box for plot minimum value on y axis
  * @param arg1
  */
-void MainWindow::on_spinAxesMin_valueChanged(int arg1)
+void MainWindow::on_spinAxesMin_valueChanged(double arg1)
 {
     ui->plot->yAxis->setRangeLower (arg1);
     ui->plot->replot();
@@ -477,55 +507,63 @@ void MainWindow::on_spinAxesMin_valueChanged(int arg1)
  * @brief Slot for spin box for plot maximum value on y axis
  * @param arg1
  */
-void MainWindow::on_spinAxesMax_valueChanged(int arg1)
+void MainWindow::on_spinAxesMax_valueChanged(double arg1)
 {
     ui->plot->yAxis->setRangeUpper (arg1);
     ui->plot->replot();
 }
 /** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
+void MainWindow::procData(const QByteArray &data){
+    if(!data.isEmpty()) {                                                             // If the byte array is not empty
+        char *temp =(char*) data.data();                                                     // Get a '\0'-terminated char* to the data
+
+        if (!filterDisplayedData){
+            ui->textEdit_UartWindow->append(data);
+        }
+        for(int i = 0; temp[i] != '\0'; i++) {                                        // Iterate over the char*
+            switch(STATE) {                                                           // Switch the current state of the message
+            case WAIT_START:                                                          // If waiting for start [$], examine each char
+                if(temp[i] == START_MSG) {                                            // If the char is $, change STATE to IN_MESSAGE
+                    STATE = IN_MESSAGE;
+                    receivedData.clear();                                             // Clear temporary QString that holds the message
+                    break;                                                            // Break out of the switch
+                }
+                break;
+            case IN_MESSAGE:                                                          // If state is IN_MESSAGE
+                if(temp[i] == END_MSG) {                                              // If char examined is ;, switch state to END_MSG
+                    STATE = WAIT_START;
+                    QStringList incomingData = receivedData.split(' ');               // Split string received from port and put it into list
+                    if(filterDisplayedData){
+                        ui->textEdit_UartWindow->append(receivedData);
+                    }
+                    emit newData(incomingData);                                       // Emit signal for data received with the list
+                    break;
+                }
+                else if (isdigit (temp[i]) || isspace (temp[i]) || temp[i] =='-' || temp[i] =='.')
+                {
+                    /* If examined char is a digit, and not '$' or ';', append it to temporary string */
+                    receivedData.append(temp[i]);
+                }
+                break;
+            default: break;
+            }
+        }
+    }
+}
+
 /**
  * @brief Read data for inside serial port
  */
 void MainWindow::readData()
 {
-    if(serialPort->bytesAvailable()) {                                                    // If any bytes are available
-        QByteArray data = serialPort->readAll();                                          // Read all data in QByteArray
+    if (ui->zmqRadioButton->isChecked()){
 
-        if(!data.isEmpty()) {                                                             // If the byte array is not empty
-            char *temp = data.data();                                                     // Get a '\0'-terminated char* to the data
+    }else{
+        if(serialPort->bytesAvailable()) {                                                    // If any bytes are available
+             QByteArray data = serialPort->readAll();                                          // Read all data in QByteArray
+            procData(data);
 
-            if (!filterDisplayedData){
-                ui->textEdit_UartWindow->append(data);
-            }
-            for(int i = 0; temp[i] != '\0'; i++) {                                        // Iterate over the char*
-                switch(STATE) {                                                           // Switch the current state of the message
-                case WAIT_START:                                                          // If waiting for start [$], examine each char
-                    if(temp[i] == START_MSG) {                                            // If the char is $, change STATE to IN_MESSAGE
-                        STATE = IN_MESSAGE;
-                        receivedData.clear();                                             // Clear temporary QString that holds the message
-                        break;                                                            // Break out of the switch
-                    }
-                    break;
-                case IN_MESSAGE:                                                          // If state is IN_MESSAGE
-                    if(temp[i] == END_MSG) {                                              // If char examined is ;, switch state to END_MSG
-                        STATE = WAIT_START;
-                        QStringList incomingData = receivedData.split(' ');               // Split string received from port and put it into list
-                        if(filterDisplayedData){
-                            ui->textEdit_UartWindow->append(receivedData);
-                        }
-                        emit newData(incomingData);                                       // Emit signal for data received with the list
-                        break;
-                    }
-                    else if (isdigit (temp[i]) || isspace (temp[i]) || temp[i] =='-' || temp[i] =='.')
-                      {
-                        /* If examined char is a digit, and not '$' or ';', append it to temporary string */
-                        receivedData.append(temp[i]);
-                      }
-                    break;
-                default: break;
-                }
-            }
         }
     }
 }
@@ -590,10 +628,26 @@ void MainWindow::onMouseMoveInPlot(QMouseEvent *event)
  */
 void MainWindow::on_mouse_wheel_in_plot (QWheelEvent *event)
 {
-  QWheelEvent inverted_event = QWheelEvent(event->posF(), event->globalPosF(),
+    /* QWheelEvent inverted_event = QWheelEvent(event->position(), event->globalPosition(),
                                            -event->pixelDelta(), -event->angleDelta(),
                                            0, Qt::Vertical, event->buttons(), event->modifiers());
-  QApplication::sendEvent (ui->spinPoints, &inverted_event);
+  */
+    //QWheelEvent inverted_event = static_cast<QWheelEvent*>(event);
+    //event->inverted(true);
+    //QApplication::sendEvent (ui->spinPoints, &inverted_event);
+    /*
+    QWheelEvent(QPointF pos, QPointF globalPos, QPoint pixelDelta, QPoint angleDelta,
+                Qt::MouseButtons buttons, Qt::KeyboardModifiers modifiers, Qt::ScrollPhase phase,
+                bool inverted, Qt::MouseEventSource source = Qt::MouseEventNotSynthesized);
+  */
+    QWheelEvent inverted_event = QWheelEvent(event->position(), event->globalPosition(),
+                                             -event->pixelDelta(), -event->angleDelta(),
+                                             event->buttons(),event->modifiers(),event->phase(),
+                                             event->inverted(),event->source());
+    QApplication::sendEvent (ui->spinPoints, &inverted_event);
+
+
+    //QApplication::sendEvent (ui->spinPoints, event);
 }
 /** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
@@ -605,21 +659,21 @@ void MainWindow::on_mouse_wheel_in_plot (QWheelEvent *event)
 void MainWindow::channel_selection (void)
 {
     /* synchronize selection of graphs with selection of corresponding legend items */
-     for (int i = 0; i < ui->plot->graphCount(); i++)
-       {
-         QCPGraph *graph = ui->plot->graph(i);
-         QCPPlottableLegendItem *item = ui->plot->legend->itemWithPlottable (graph);
-         if (item->selected())
-           {
-             item->setSelected (true);
-   //          graph->set (true);
-           }
-         else
-           {
-             item->setSelected (false);
-     //        graph->setSelected (false);
-           }
-       }
+    for (int i = 0; i < ui->plot->graphCount(); i++)
+    {
+        QCPGraph *graph = ui->plot->graph(i);
+        QCPPlottableLegendItem *item = ui->plot->legend->itemWithPlottable (graph);
+        if (item->selected())
+        {
+            item->setSelected (true);
+            //          graph->set (true);
+        }
+        else
+        {
+            item->setSelected (false);
+            //        graph->setSelected (false);
+        }
+    }
 }
 /** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
@@ -634,20 +688,20 @@ void MainWindow::legend_double_click(QCPLegend *legend, QCPAbstractLegendItem *i
     Q_UNUSED(event)
     /* Only react if item was clicked (user could have clicked on border padding of legend where there is no item, then item is 0) */
     if (item)
-      {
+    {
         QCPPlottableLegendItem *plItem = qobject_cast<QCPPlottableLegendItem*>(item);
         bool ok;
         QString newName = QInputDialog::getText (this, "Change channel name", "New name:", QLineEdit::Normal, plItem->plottable()->name(), &ok, Qt::Popup);
         if (ok)
-          {
+        {
             plItem->plottable()->setName(newName);
             for(int i=0; i<ui->plot->graphCount(); i++)
             {
                 ui->listWidget_Channels->item(i)->setText(ui->plot->graph(i)->name());
             }
             ui->plot->replot();
-          }
-      }
+        }
+    }
 }
 /** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
@@ -668,9 +722,9 @@ void MainWindow::on_spinPoints_valueChanged (int arg1)
  */
 void MainWindow::on_actionHow_to_use_triggered()
 {
-  helpWindow = new HelpWindow (this);
-  helpWindow->setWindowTitle ("How to use this application");
-  helpWindow->show();
+    helpWindow = new HelpWindow (this);
+    helpWindow->setWindowTitle ("How to use this application");
+    helpWindow->show();
 }
 
 /** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
@@ -680,73 +734,97 @@ void MainWindow::on_actionHow_to_use_triggered()
  */
 void MainWindow::on_actionConnect_triggered()
 {
-  if (connected)
+    if (connected)
     {
-      /* Is connected, restart if paused */
-      if (!plotting)
+        /* Is connected, restart if paused */
+        if (!plotting)
         {                                                                              // Start plotting
-          updateTimer.start();                                                              // Start updating plot timer
-          plotting = true;
-          ui->actionConnect->setEnabled (false);
-          ui->actionPause_Plot->setEnabled (true);
-          ui->statusBar->showMessage ("Plot restarted!");
+            updateTimer.start();                                                              // Start updating plot timer
+            plotting = true;
+            ui->actionConnect->setEnabled (false);
+            ui->actionPause_Plot->setEnabled (true);
+            ui->statusBar->showMessage ("Plot restarted!");
         }
     }
-  else
+    else
     {
-      /* If application is not connected, connect */
-      /* Get parameters from controls first */
-      QSerialPortInfo portInfo (ui->comboPort->currentText());                          // Temporary object, needed to create QSerialPort
-      int baudRate = ui->comboBaud->currentText().toInt();                              // Get baud rate from combo box
-      int dataBitsIndex = ui->comboData->currentIndex();                                // Get index of data bits combo box
-      int parityIndex = ui->comboParity->currentIndex();                                // Get index of parity combo box
-      int stopBitsIndex = ui->comboStop->currentIndex();                                // Get index of stop bits combo box
-      QSerialPort::DataBits dataBits;
-      QSerialPort::Parity parity;
-      QSerialPort::StopBits stopBits;
+        connect (this, SIGNAL(newData(QStringList)), this, SLOT(onNewDataArrived(QStringList)));
+        connect (this, SIGNAL(newData(QStringList)), this, SLOT(saveStream(QStringList)));
 
-      /* Set data bits according to the selected index */
-      switch (dataBitsIndex)
-        {
-        case 0:
-          dataBits = QSerialPort::Data8;
-          break;
-        default:
-          dataBits = QSerialPort::Data7;
+        if (ui->zmqRadioButton->isChecked()){
+            //connect zmq
+            feeds::Subscribe *zmqSubs = new feeds::Subscribe(this);
+            zmqSubs->addSocketTopic("test");
+            zmqSubs->setSocketUri("tcp://127.0.0.1:9990");
+            zmqSubs->setDebugName("zmqQ");
+            bool connected = connect (zmqSubs, &feeds::Subscribe::socketMessageReceived,
+                                         this,   &MainWindow::on_socketMessageReceived);
+            /*
+            zmqSubs->dumpObjectInfo();
+            this->dumpObjectInfo();
+            connect(zmqSubs, &QObject::destroyed,
+                    [] { qDebug() << "Sender got deleted!"; });
+            connect(this, &QObject::destroyed,
+                    [] { qDebug() << "Receiver got deleted!"; });
+                    */
+            zmqSubs->setReady(true);
+            //emit portOpenOK();
+            portOpenedSuccess();
+
+        }else{
+            /* If application is not connected, connect */
+            /* Get parameters from controls first */
+            QSerialPortInfo portInfo (ui->comboPort->currentText());                          // Temporary object, needed to create QSerialPort
+            int baudRate = ui->comboBaud->currentText().toInt();                              // Get baud rate from combo box
+            int dataBitsIndex = ui->comboData->currentIndex();                                // Get index of data bits combo box
+            int parityIndex = ui->comboParity->currentIndex();                                // Get index of parity combo box
+            int stopBitsIndex = ui->comboStop->currentIndex();                                // Get index of stop bits combo box
+            QSerialPort::DataBits dataBits;
+            QSerialPort::Parity parity;
+            QSerialPort::StopBits stopBits;
+
+            /* Set data bits according to the selected index */
+            switch (dataBitsIndex)
+            {
+            case 0:
+                dataBits = QSerialPort::Data8;
+                break;
+            default:
+                dataBits = QSerialPort::Data7;
+            }
+
+            /* Set parity according to the selected index */
+            switch (parityIndex)
+            {
+            case 0:
+                parity = QSerialPort::NoParity;
+                break;
+            case 1:
+                parity = QSerialPort::OddParity;
+                break;
+            default:
+                parity = QSerialPort::EvenParity;
+            }
+
+            /* Set stop bits according to the selected index */
+            switch (stopBitsIndex)
+            {
+            case 0:
+                stopBits = QSerialPort::OneStop;
+                break;
+            default:
+                stopBits = QSerialPort::TwoStop;
+            }
+
+            /* Use local instance of QSerialPort; does not crash */
+            serialPort = new QSerialPort (portInfo, nullptr);
+
+            /* Open serial port and connect its signals */
+            openPort (portInfo, baudRate, dataBits, parity, stopBits);
         }
-
-      /* Set parity according to the selected index */
-      switch (parityIndex)
-        {
-        case 0:
-          parity = QSerialPort::NoParity;
-          break;
-        case 1:
-          parity = QSerialPort::OddParity;
-          break;
-        default:
-          parity = QSerialPort::EvenParity;
-        }
-
-      /* Set stop bits according to the selected index */
-      switch (stopBitsIndex)
-        {
-        case 0:
-          stopBits = QSerialPort::OneStop;
-          break;
-        default:
-          stopBits = QSerialPort::TwoStop;
-        }
-
-      /* Use local instance of QSerialPort; does not crash */
-      serialPort = new QSerialPort (portInfo, nullptr);
-
-      /* Open serial port and connect its signals */
-      openPort (portInfo, baudRate, dataBits, parity, stopBits);
-
-      /* Enable PNG export */
-      ui->actionRecord_PNG->setEnabled(true);
-  }
+        /* Enable PNG export */
+        ui->actionRecord_PNG->setEnabled(true);
+    }
 }
 /** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
@@ -755,13 +833,13 @@ void MainWindow::on_actionConnect_triggered()
  */
 void MainWindow::on_actionPause_Plot_triggered()
 {
-  if (plotting)
+    if (plotting)
     {
-      updateTimer.stop();                                                               // Stop updating plot timer
-      plotting = false;
-      ui->actionConnect->setEnabled (true);
-      ui->actionPause_Plot->setEnabled (false);
-      ui->statusBar->showMessage ("Plot paused, new data will be ignored");
+        updateTimer.stop();                                                               // Stop updating plot timer
+        plotting = false;
+        ui->actionConnect->setEnabled (true);
+        ui->actionPause_Plot->setEnabled (false);
+        ui->statusBar->showMessage ("Plot paused, new data will be ignored");
     }
 }
 /** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
@@ -773,11 +851,11 @@ void MainWindow::on_actionRecord_stream_triggered()
 {
     if (ui->actionRecord_stream->isChecked())
     {
-      ui->statusBar->showMessage ("Data will be stored in csv file");
+        ui->statusBar->showMessage ("Data will be stored in csv file");
     }
     else
     {
-      ui->statusBar->showMessage ("Data will not be stored anymore");
+        ui->statusBar->showMessage ("Data will not be stored anymore");
     }
 }
 /** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
@@ -787,25 +865,30 @@ void MainWindow::on_actionRecord_stream_triggered()
  */
 void MainWindow::on_actionDisconnect_triggered()
 {
-  if (connected)
+    if (connected)
     {
-      serialPort->close();                                                              // Close serial port
-      emit portClosed();                                                                // Notify application
-      delete serialPort;                                                                // Delete the pointer
-      serialPort = nullptr;                                                                // Assign NULL to dangling pointer
 
-      ui->statusBar->showMessage ("Disconnected!");
+        if (ui->zmqRadioButton->isChecked()){
+        }else{
+            serialPort->close();                                                              // Close serial port
+            emit portClosed();                                                                // Notify application
+            delete serialPort;                                                                // Delete the pointer
+            serialPort = nullptr;
+        }
+        // Assign NULL to dangling pointer
 
-      connected = false;                                                                // Set connected status flag to false
-      ui->actionConnect->setEnabled (true);
+        ui->statusBar->showMessage ("Disconnected!");
 
-      plotting = false;                                                                 // Not plotting anymore
-      ui->actionPause_Plot->setEnabled (false);
-      ui->actionDisconnect->setEnabled (false);
-      ui->actionRecord_stream->setEnabled(true);
-      receivedData.clear();                                                             // Clear received string
+        connected = false;                                                                // Set connected status flag to false
+        ui->actionConnect->setEnabled (true);
 
-      enable_com_controls (true);
+        plotting = false;                                                                 // Not plotting anymore
+        ui->actionPause_Plot->setEnabled (false);
+        ui->actionDisconnect->setEnabled (false);
+        ui->actionRecord_stream->setEnabled(true);
+        receivedData.clear();                                                             // Clear received string
+
+        enable_com_controls (true);
     }
 }
 /** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
@@ -825,8 +908,8 @@ void MainWindow::on_actionClear_triggered()
         ui->plot->graph(g)->data().data()->clear();
     }
     ui->plot->replot();
-//    ui->plot->clearPlottables();
-//    ui->listWidget_Channels->clear();
+    //    ui->plot->clearPlottables();
+    //    ui->listWidget_Channels->clear();
     channels = 0;
     dataPointNumber = 0;
     emit setupPlot();
@@ -844,12 +927,12 @@ void MainWindow::on_actionClear_triggered()
 void MainWindow::openCsvFile(void)
 {
     m_csvFile = new QFile(QDir::homePath() + '/' + QDateTime::currentDateTime().toString("yyyy-MM-d-HH-mm-ss-")+"data-out.csv");    // add home path before picture's name
-  //m_csvFile = new QFile(QDateTime::currentDateTime().toString("yyyy-MM-d-HH-mm-ss-")+"data-out.csv");
-  if(!m_csvFile)
-      return;
-  if (!m_csvFile->open(QIODevice::ReadWrite | QIODevice::Text))
+    //m_csvFile = new QFile(QDateTime::currentDateTime().toString("yyyy-MM-d-HH-mm-ss-")+"data-out.csv");
+    if(!m_csvFile)
         return;
-  
+    if (!m_csvFile->open(QIODevice::ReadWrite | QIODevice::Text))
+        return;
+
 }
 /** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
@@ -859,10 +942,10 @@ void MainWindow::openCsvFile(void)
  */
 void MainWindow::closeCsvFile(void)
 {
-  if(!m_csvFile) return;
-  m_csvFile->close();
-  if(m_csvFile) delete m_csvFile;
-  m_csvFile = nullptr;
+    if(!m_csvFile) return;
+    m_csvFile->close();
+    if(m_csvFile) delete m_csvFile;
+    m_csvFile = nullptr;
 }
 /** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
@@ -872,16 +955,16 @@ void MainWindow::closeCsvFile(void)
  */
 void MainWindow::saveStream(QStringList newData)
 {
-  if(!m_csvFile)
-    return;
-  if(ui->actionRecord_stream->isChecked())
-  {
-      QTextStream out(m_csvFile);
-      foreach (const QString &str, newData) {
-        out << str << ",";
-      }
-      out << "\n";
-  }
+    if(!m_csvFile)
+        return;
+    if(ui->actionRecord_stream->isChecked())
+    {
+        QTextStream out(m_csvFile);
+        foreach (const QString &str, newData) {
+            out << str << ",";
+        }
+        out << "\n";
+    }
 }
 
 /** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
@@ -933,11 +1016,12 @@ void MainWindow::on_pushButton_ResetVisible_clicked()
 void MainWindow::on_listWidget_Channels_itemDoubleClicked(QListWidgetItem *item)
 {
     int graphIdx = ui->listWidget_Channels->currentRow();
-
+    QBrush black(QColor(0,0,0));
     if(ui->plot->graph(graphIdx)->visible())
     {
         ui->plot->graph(graphIdx)->setVisible(false);
-        item->setBackgroundColor(Qt::black);
+        //item->setBackgroundColor(Qt::black);
+        item->setBackground(black);
     }
     else
     {
@@ -965,16 +1049,20 @@ void MainWindow::on_pushButton_clicked()
  */
 void MainWindow::loadSettings()
 {
-  QSettings settings;
-  m_prefs.port = settings.value("port", 0).toInt();
-  m_prefs.baud = settings.value("baud", 7).toInt();
-  m_prefs.data = settings.value("data", 0).toInt();
-  m_prefs.parity = settings.value("parity", 0).toInt();
-  m_prefs.stop = settings.value("stop", 0).toInt();
-  m_prefs.spinPoints = settings.value("spinPoints", 1000).toInt();
-  m_prefs.spinYStep = settings.value("spinYStep", 10).toInt();
-  m_prefs.spinAxesMin = settings.value("spinAxesMin", -100).toInt();
-  m_prefs.spinAxesMax = settings.value("spinAxesMax", 100).toInt();
+    QSettings settings;
+    m_prefs.dataFeedMode = static_cast<FeedMode>(settings.value("feedMode",0).toInt());
+    m_prefs.port = settings.value("port", 0).toInt();
+    m_prefs.baud = settings.value("baud", 7).toInt();
+    m_prefs.data = settings.value("data", 0).toInt();
+    m_prefs.parity = settings.value("parity", 0).toInt();
+    m_prefs.stop = settings.value("stop", 0).toInt();
+    m_prefs.spinPoints = settings.value("spinPoints", 1000).toInt();
+    m_prefs.spinYStep = settings.value("spinYStep", 10).toInt();
+    m_prefs.spinAxesMin = settings.value("spinAxesMin", -100).toDouble();
+    m_prefs.spinAxesMax = settings.value("spinAxesMax", 100).toDouble();
+    m_prefs.zmqURL = settings.value("zmqURL","").toString();
+    m_prefs.zmqQueue = settings.value("zmqQ","").toString();
+
 }
 
 /** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
@@ -986,6 +1074,7 @@ void MainWindow::loadSettings()
 void MainWindow::saveSettings()
 {
     QSettings settings;
+    settings.setValue("feedMode",ui->zmqRadioButton->isChecked());
     settings.setValue("port", ui->comboPort->currentIndex());
     settings.setValue("baud", ui->comboBaud->currentIndex());
     settings.setValue("data", ui->comboData->currentIndex());
@@ -995,6 +1084,27 @@ void MainWindow::saveSettings()
     settings.setValue("spinYStep", ui->spinYStep->value());
     settings.setValue("spinAxesMin",  ui->spinAxesMin->value());
     settings.setValue("spinAxesMax",  ui->spinAxesMax->value());
+    settings.setValue("zmqURL", ui->zmqUrlLineEdit->text());
+    settings.setValue("zmqQ", ui->zmqQLineEdit->text());
+
+}
+
+void MainWindow::initZmq()
+{
+    /*
+    QString zmqAddress = "tcp://127.0.0.1:9990";
+    QString zmqTopic = "test";
+
+    nzmqt::samples::SampleBase* commandImpl = 0;
+
+    ZMQContext* context = createDefaultContext(this);
+    context->start();
+    commandImpl = new nzmqt::samples::pubsub::Subscriber(*context, zmqAddress, zmqTopic, this);
+    // If command is finished we quit application.
+    connect(commandImpl, SIGNAL(finished()), SLOT(quit()));
+    // Start command.
+    commandImpl->start();
+    */
 }
 /** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
@@ -1008,4 +1118,29 @@ void MainWindow::closeEvent(QCloseEvent *event)
     event->accept();
 }
 
+
+
+void MainWindow::on_zmqRadioButton_clicked()
+{
+    ui->PortControlsBox->setVisible(false);
+    ui->zmqGroupBox->setVisible(true);
+
+    ui->zmqRadioButton->setChecked(true);
+    ui->serialRadioButton->setChecked(false);
+}
+
+void MainWindow::on_serialRadioButton_clicked()
+{
+    ui->PortControlsBox->setVisible(true);
+    ui->zmqGroupBox->setVisible(false);
+    ui->zmqRadioButton->setChecked(false);
+    ui->serialRadioButton->setChecked(true);
+}
+
+void MainWindow::on_socketMessageReceived(QByteArray topic,  QByteArray data)
+{
+    qDebug() << "topic " << topic;
+    qDebug() << "data " << data;
+    procData(data);
+}
 

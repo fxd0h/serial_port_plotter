@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1002</width>
-    <height>743</height>
+    <width>1009</width>
+    <height>1028</height>
    </rect>
   </property>
   <property name="minimumSize">
@@ -23,8 +23,97 @@
    <layout class="QGridLayout" name="gridLayout_3">
     <item row="0" column="0">
      <layout class="QVBoxLayout" name="controlsLayout">
+      <property name="spacing">
+       <number>6</number>
+      </property>
+      <item>
+       <widget class="QGroupBox" name="feedGroupBox">
+        <property name="title">
+         <string>FEED TYPE</string>
+        </property>
+        <layout class="QGridLayout" name="gridLayout_5">
+         <item row="0" column="0">
+          <layout class="QVBoxLayout" name="verticalLayout_2">
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_11">
+             <item>
+              <widget class="QRadioButton" name="zmqRadioButton">
+               <property name="text">
+                <string>ZMQ</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QRadioButton" name="serialRadioButton">
+               <property name="layoutDirection">
+                <enum>Qt::LeftToRight</enum>
+               </property>
+               <property name="text">
+                <string>SERIAL</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <widget class="QGroupBox" name="zmqGroupBox">
+        <property name="title">
+         <string>ZMQ CONTROLS</string>
+        </property>
+        <layout class="QGridLayout" name="gridLayout_6">
+         <item row="0" column="0">
+          <layout class="QVBoxLayout" name="verticalLayout_4">
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_13">
+             <item>
+              <widget class="QLabel" name="label_3">
+               <property name="text">
+                <string>URL</string>
+               </property>
+              </widget>
+             </item>
+             <item alignment="Qt::AlignHCenter">
+              <widget class="QLineEdit" name="zmqUrlLineEdit">
+               <property name="placeholderText">
+                <string extracomment="ZMQ url">tcp://127.0.0.1:1234</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_14">
+             <item>
+              <widget class="QLabel" name="label_4">
+               <property name="text">
+                <string>QUEUE</string>
+               </property>
+              </widget>
+             </item>
+             <item alignment="Qt::AlignHCenter">
+              <widget class="QLineEdit" name="zmqQLineEdit">
+               <property name="placeholderText">
+                <string>plotter</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
+      </item>
       <item>
        <widget class="QGroupBox" name="PortControlsBox">
+        <property name="enabled">
+         <bool>true</bool>
+        </property>
         <property name="title">
          <string>PORT CONTROLS</string>
         </property>
@@ -379,7 +468,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QSpinBox" name="spinAxesMin">
+              <widget class="QDoubleSpinBox" name="spinAxesMin">
                <property name="minimumSize">
                 <size>
                  <width>69</width>
@@ -393,16 +482,10 @@
                 </size>
                </property>
                <property name="minimum">
-                <number>-65536</number>
+                <double>-65535.000000000000000</double>
                </property>
                <property name="maximum">
-                <number>65536</number>
-               </property>
-               <property name="singleStep">
-                <number>10</number>
-               </property>
-               <property name="value">
-                <number>-100</number>
+                <double>65535.000000000000000</double>
                </property>
               </widget>
              </item>
@@ -430,7 +513,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QSpinBox" name="spinAxesMax">
+              <widget class="QDoubleSpinBox" name="spinAxesMax">
                <property name="minimumSize">
                 <size>
                  <width>69</width>
@@ -444,16 +527,10 @@
                 </size>
                </property>
                <property name="minimum">
-                <number>-65536</number>
+                <double>-65535.000000000000000</double>
                </property>
                <property name="maximum">
-                <number>65536</number>
-               </property>
-               <property name="singleStep">
-                <number>10</number>
-               </property>
-               <property name="value">
-                <number>100</number>
+                <double>65535.000000000000000</double>
                </property>
               </widget>
              </item>
@@ -488,7 +565,7 @@
              </property>
              <property name="maximumSize">
               <size>
-               <width>150</width>
+               <width>185</width>
                <height>16777215</height>
               </size>
              </property>
@@ -708,7 +785,7 @@
     <string>Connect</string>
    </property>
    <property name="toolTip">
-    <string>Connect to COM port</string>
+    <string>Connect</string>
    </property>
   </action>
   <action name="actionPause_Plot">
@@ -752,7 +829,7 @@
     <string>Disconnect</string>
    </property>
    <property name="toolTip">
-    <string>Disconnect COM port</string>
+    <string>Disconnect</string>
    </property>
   </action>
   <action name="actionClear">

@@ -64,8 +64,8 @@ private slots:
     void replot();                                                                        // Slot for repainting the plot
     void onNewDataArrived(QStringList newData);                                           // Slot for new data from serial port
     void saveStream(QStringList newData);                                                 // Save the received data to the opened file
-    void on_spinAxesMin_valueChanged(int arg1);                                           // Changing lower limit for the plot
-    void on_spinAxesMax_valueChanged(int arg1);                                           // Changing upper limit for the plot
+    void on_spinAxesMin_valueChanged(double arg1);                                           // Changing lower limit for the plot
+    void on_spinAxesMax_valueChanged(double arg1);                                           // Changing upper limit for the plot
     void readData();                                                                      // Slot for inside serial port
     //void on_comboAxes_currentIndexChanged(int index);                                     // Display number of axes and colors in status bar
     void on_spinYStep_valueChanged(int arg1);                                             // Spin box for changing Y axis tick step
@@ -97,6 +97,14 @@ private slots:
     void on_listWidget_Channels_itemDoubleClicked(QListWidgetItem *item);
 
     void on_pushButton_clicked();
+
+
+    void on_zmqRadioButton_clicked();
+
+    void on_serialRadioButton_clicked();
+
+public slots:
+    void on_socketMessageReceived(QByteArray topic,QByteArray data );
 
 
 signals:
@@ -135,10 +143,15 @@ private:
     QFile* m_csvFile = nullptr;
     void openCsvFile(void);
     void closeCsvFile(void);
+    enum FeedMode{
+        SERIAL_DATA,
+        ZMQ_DATA
+    };
 
     /* Preferences */
     struct SPreferences
     {
+        FeedMode dataFeedMode;                                                          // data feed mode
         int port;                                                                       // last port used
         int baud;                                                                       // last baudrate item used
         int data;                                                                       // last data length used
@@ -146,8 +159,10 @@ private:
         int stop;                                                                       // last stop bit number
         int spinPoints;
         int spinYStep;                                                                  // last value used
-        int spinAxesMin;                                                                // last value used
-        int spinAxesMax;                                                                // last value used
+        double spinAxesMin;                                                                // last value used
+        double spinAxesMax;                                                                // last value used
+        QString zmqURL;                                                                 // last ZMQ URL
+        QString zmqQueue;                                                               // last ZMQ Queue
     };
     SPreferences m_prefs;                                                               // preferences stucture
 
@@ -168,6 +183,10 @@ private:
 
     void loadSettings();                                                                // load settings to populate preferences fro; config file
     void saveSettings();                                                                // sqve preferences in config file
+
+    void initZmq();
+    //void procData(QByteArray *data);
+    void procData(const QByteArray &data);
 };
 
 

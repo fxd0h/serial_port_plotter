@@ -4,6 +4,35 @@
 #
 #-------------------------------------------------
 
+
+defineTest(minQtVersion) {
+    maj = $$1
+    min = $$2
+    patch = $$3
+    isEqual(QT_MAJOR_VERSION, $$maj) {
+        isEqual(QT_MINOR_VERSION, $$min) {
+            isEqual(QT_PATCH_VERSION, $$patch) {
+                return(true)
+            }
+            greaterThan(QT_PATCH_VERSION, $$patch) {
+                return(true)
+            }
+        }
+        greaterThan(QT_MINOR_VERSION, $$min) {
+            return(true)
+        }
+    }
+    greaterThan(QT_MAJOR_VERSION, $$maj) {
+        return(true)
+    }
+    return(false)
+}
+
+!minQtVersion(5, 14, 0) {
+    message("Cannot build genericPlotter with Qt version $${QT_VERSION}.")
+    error("Use at least Qt 5.14.0.")
+}
+
 QT       += core gui
 QT       += serialport
 CONFIG += c++11
@@ -15,13 +44,29 @@ QT += widgets printsupport
 TARGET = serialportplotter
 TEMPLATE = app
 
+
+include(zeromq.pri)
+
+INCLUDEPATH += \
+    $(QTDIR)/include \
+    /usr/local/include \
+    /opt/local/include
+
+QMAKE_LIBDIR += \
+   # /opt/local/lib \
+    /usr/local/lib
+
+
 SOURCES += main.cpp\
         mainwindow.cpp \
         qcustomplot/qcustomplot.cpp \
+        feeds/subscribe.cpp \
         helpwindow.cpp
 
 HEADERS  += mainwindow.hpp \
+        debughelper.h \
         qcustomplot/qcustomplot.h \
+        feeds/subscribe.h \
         helpwindow.hpp
 
 

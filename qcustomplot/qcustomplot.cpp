@@ -1104,8 +1104,10 @@ void QCPLayer::setMode(QCPLayer::LayerMode mode)
   if (mMode != mode)
   {
     mMode = mode;
-    if (!mPaintBuffer.isNull())
-      mPaintBuffer.data()->setInvalidated();
+    if (!mPaintBuffer.isNull()){
+      mPaintBuffer.toStrongRef().data()->setInvalidated();
+      //mPaintBuffer.toStrongRef().data()->setInvalidated();
+    }
   }
 }
 
@@ -1142,14 +1144,14 @@ void QCPLayer::drawToPaintBuffer()
 {
   if (!mPaintBuffer.isNull())
   {
-    if (QCPPainter *painter = mPaintBuffer.data()->startPainting())
+    if (QCPPainter *painter = mPaintBuffer.toStrongRef().data()->startPainting())
     {
       if (painter->isActive())
         draw(painter);
       else
         qDebug() << Q_FUNC_INFO << "paint buffer returned inactive painter";
       delete painter;
-      mPaintBuffer.data()->donePainting();
+      mPaintBuffer.toStrongRef().data()->donePainting();
     } else
       qDebug() << Q_FUNC_INFO << "paint buffer returned zero painter";
   } else
@@ -1175,9 +1177,9 @@ void QCPLayer::replot()
   {
     if (!mPaintBuffer.isNull())
     {
-      mPaintBuffer.data()->clear(Qt::transparent);
+      mPaintBuffer.toStrongRef().data()->clear(Qt::transparent);
       drawToPaintBuffer();
-      mPaintBuffer.data()->setInvalidated(false);
+      mPaintBuffer.toStrongRef().data()->setInvalidated(false);
       mParentPlot->update();
     } else
       qDebug() << Q_FUNC_INFO << "no valid paint buffer associated with this layer";
@@ -1204,7 +1206,7 @@ void QCPLayer::addChild(QCPLayerable *layerable, bool prepend)
     else
       mChildren.append(layerable);
     if (!mPaintBuffer.isNull())
-      mPaintBuffer.data()->setInvalidated();
+      mPaintBuffer.toStrongRef().data()->setInvalidated();
   } else
     qDebug() << Q_FUNC_INFO << "layerable is already child of this layer" << reinterpret_cast<quintptr>(layerable);
 }
@@ -1223,7 +1225,7 @@ void QCPLayer::removeChild(QCPLayerable *layerable)
   if (mChildren.removeOne(layerable))
   {
     if (!mPaintBuffer.isNull())
-      mPaintBuffer.data()->setInvalidated();
+      mPaintBuffer.toStrongRef().data()->setInvalidated();
   } else
     qDebug() << Q_FUNC_INFO << "layerable is not child of this layer" << reinterpret_cast<quintptr>(layerable);
 }
@@ -4895,7 +4897,7 @@ Qt::Alignment QCPLayoutInset::insetAlignment(int index) const
   else
   {
     qDebug() << Q_FUNC_INFO << "Invalid element index:" << index;
-    return 0;
+    return Qt::AlignAbsolute;
   }
 }
 
@@ -14134,7 +14136,7 @@ bool QCustomPlot::removeLayer(QCPLayer *layer)
     setCurrentLayer(targetLayer);
   // invalidate the paint buffer that was responsible for this layer:
   if (!layer->mPaintBuffer.isNull())
-    layer->mPaintBuffer.data()->setInvalidated();
+    layer->mPaintBuffer.toStrongRef().data()->setInvalidated();
   // remove layer:
   delete layer;
   mLayers.removeOne(layer);
@@ -14171,9 +14173,9 @@ bool QCustomPlot::moveLayer(QCPLayer *layer, QCPLayer *otherLayer, QCustomPlot::
   
   // invalidate the paint buffers that are responsible for the layers:
   if (!layer->mPaintBuffer.isNull())
-    layer->mPaintBuffer.data()->setInvalidated();
+    layer->mPaintBuffer.toStrongRef().data()->setInvalidated();
   if (!otherLayer->mPaintBuffer.isNull())
-    otherLayer->mPaintBuffer.data()->setInvalidated();
+    otherLayer->mPaintBuffer.toStrongRef().data()->setInvalidated();
   
   updateLayerIndices();
   return true;
